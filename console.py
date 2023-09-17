@@ -1,280 +1,243 @@
 #!/usr/bin/python3
-"""Defines AirBnb console."""
+"""AirBnB Console Application"""
+
 import cmd
-import re
-from shlex import split
+import sys
+import json
+from models.engine import name_class
 from models import storage
-from models.base_model import BaseModel
-from models.user import User
-from models.state import State
-from models.city import City
-from models.place import Place
-from models.amenity import Amenity
-from models.review import Review
+from models import City
+from models import Place
+from models import Review
+from models import State
+from models import Amenity
+from models import BaseModel
+from models import User
 
 
-def parse(arg):
-    curly_braces = re.search(r"\{(.*?)\}", arg)
-    brackets = re.search(r"\[(.*?)\]", arg)
-    if curly_braces is None:
-        if brackets is None:
-            return [i.strip(",") for i in split(arg)]
-        else:
-            lexer = split(arg[:brackets.span()[0]])
-            retl = [i.strip(",") for i in lexer]
-            retl.append(brackets.group())
-            return retl
+def parse_args(args):
+    if args:
+        all_args = args.split(' ')
+        return all_args
+    return
+
+
+def complete_class_arg(text, line, begidx, endidx):
+    if not text:
+        completions = name_class[:]
     else:
-        lexer = split(arg[:curly_braces.span()[0]])
-        retl = [i.strip(",") for i in lexer]
-        retl.append(curly_braces.group())
-        return retl
+        completions = [
+            class_name
+            for class_name in name_class
+            if class_name.startswith(text)]
+    return completions
 
 
 class HBNBCommand(cmd.Cmd):
-    """Defines command interpreter.
-
-    Attributes:
-        prompt (str): The command prompt.
+    """AirBnB Console APP Subclass
     """
-
-    prompt = "(hbnb) "
-    __all_classes = {
-        "BaseModel",
-        "User",
-        "State",
-        "City",
-        "Place",
-        "Amenity",
-        "Review"
-    }
-
-    def emptyline(self):
-        """
-        Called when an empty line is entered.
-        If this method is not overridden like this,
-        it repeats the last nonempty
-        command entered.
-        It should not be empty_line, so ignore the typo warnings.
-        (see: https://github.com/python/cpython/blob/3.11/Lib/cmd.py)
-        """
-        pass
-
-    def default(self, arg):
-        """This is the default behavior for cmd module when input is invalid"""
-        argdict = {
-            "all": self.do_all,
-            "show": self.do_show,
-            "destroy": self.do_destroy,
-            "count": self.do_count,
-            "update": self.do_update
-        }
-        match = re.search(r"\.", arg)
-        if match is not None:
-            argl = [arg[:match.span()[0]], arg[match.span()[1]:]]
-            match = re.search(r"\((.*?)\)", argl[1])
-            if match is not None:
-                command = [argl[1][:match.span()[0]], match.group()[1:-1]]
-                if command[0] in argdict.keys():
-                    call = "{} {}".format(argl[0], command[1])
-                    return argdict[command[0]](call)
-        print("*** Unknown syntax: {}".format(arg))
-        return False
+    prompt = '(hbnb) '
 
     def do_quit(self, arg):
-        """Quit command -> exit the program."""
+        """Exit CLI when `quit` is entered"""
         return True
 
     def do_EOF(self, arg):
-        """EOF signal -> exit the program."""
-        print("")
+        """Execute nothing for an EOF input"""
         return True
 
+    def emptyline(self):
+        """Execute nothing for an empty line command"""
+        pass
+
     def do_create(self, args):
+        """Creates a new instance of BaseModel
+        create: create <class_name> (ex: create BaseModel)
         """
-            Creates a new instance of a class,
-            saves it (to the JSON file) and prints the id.
-            Usage: create <class_name>
-       """
-        # If the class name is missing,
-        # print ** class name missing ** (ex: $ create)
-        if len(args) < 1:
+
+        all_args = parse_args(args)
+
+        if not all_args:
             print("** class name missing **")
             return
-        # If the class name doesn’t exist,
-        # print ** class doesn't exist ** (ex: $ create MyModel)
-
-        # convert the args to a list
-        args = args.split()
-
-        # the 1st element of the list is the class name
-        class_name = args[0]
-        if class_name not in self.__all_classes:
+        elif all_args[0] not in name_class:
             print("** class doesn't exist **")
             return
-        # print(self.__all_classes)
-        # eval() interprets a string as a piece of python code
-        new_object = eval(class_name + "()")
-        new_object.save()
-        print(new_object.id)
+
+        class_name = all_args[0]
+
+        # create new BaseModel instance
+        new_instance = eval(class_name)()
+
+        # save to file.json
+        storage.new(new_instance)
         storage.save()
+
+        # print id
+        print(new_instance.id)
+
+    def complete_create(self, text, line, begidx, endidx):
+        return complete_class_arg(text, line, begidx, endidx)
 
     def do_show(self, args):
-        """Usage: to show <class> <id> or <class>.show(<id>)
-        Display string representation of a class instance of given id.
+        """Prints the string representation of an instance based\
+                on the class name and id
+        show: show <class_name> <instance id>
         """
-        arg_list = args.split()
-        objdict = storage.all()
-        if len(arg_list) == 0:
+
+        all_args = parse_args(args)
+
+        if not all_args:
             print("** class name missing **")
             return
-        elif arg_list[0] not in self.__all_classes:
+        elif all_args[0] not in name_class:
             print("** class doesn't exist **")
             return
-        elif len(arg_list) == 1:
+        elif len(all_args) < 2:
             print("** instance id missing **")
             return
 
-        object_key = "{}.{}".format(arg_list[0], arg_list[1])
+        class_name = all_args[0]
+        inst_id = all_args[1]
 
-        if object_key not in objdict:
-            print("** no instance found **")
-            return
+        # print string rep of an instance base on class name and id
+        obj_key = f'{class_name}.{inst_id}'
+
+        storage.reload()
+        objs_in_dict = storage.all()
+
+        try:
+            obj = objs_in_dict[obj_key]
+        except:
+            print('** no instance found **')
         else:
-            print(objdict[object_key])
+            print(obj)
+
+    def complete_show(self, text, line, begidx, endidx):
+        return complete_class_arg(text, line, begidx, endidx)
 
     def do_destroy(self, args):
-        """Usage: to destroy <class> <id> or <class>.destroy(<id>)
-        Delete class instance of given id."""
+        """Deletes an instance based on the class name and id
+        destroy: destroy <class_name> <instance id>
+        """
 
-        arg_list = args.split()
-        all_objects = storage.all()
-        if len(arg_list) == 0:
+        all_args = parse_args(args)
+
+        if not all_args:
             print("** class name missing **")
             return
-        class_name = arg_list[0]
-        if class_name not in self.__all_classes:
+        elif all_args[0] not in name_class:
             print("** class doesn't exist **")
             return
-        if len(arg_list) == 1:
+        elif len(all_args) < 2:
             print("** instance id missing **")
             return
-        instance_id = arg_list[1]
 
-        object_key = "{}.{}".format(class_name, instance_id)
+        class_name = all_args[0]
+        inst_id = all_args[1]
 
-        if object_key not in all_objects.keys():
-            print("** no instance found **")
+        obj_key = f'{class_name}.{inst_id}'
+
+        storage.reload()
+        objs_in_dict = storage.all()
+
+        try:
+            del objs_in_dict[obj_key]
+        except:
+            print('** no instance found **')
         else:
-            del all_objects[object_key]
             storage.save()
 
+    def complete_destroy(self, text, line, begidx, endidx):
+        return complete_class_arg(text, line, begidx, endidx)
+
     def do_all(self, args):
-        """Usage: all or all <class> or <class>.all()
-        Display string representations of all instances of given class
-        If no class is specified, display all instantiated objects."""
+        """Prints all string representation of all instances
+        all: all [<class_name>]
+        """
 
-        arg_list = args.split()
-        all_objects = storage.all()
-        object_list = []
-        if len(arg_list) == 0:
-            for obj in all_objects.values():
-                object_list.append(obj.__str__())
-            print(list(object_list))
-            return
+        all_args = parse_args(args)
 
-        if len(arg_list) > 0 and arg_list[0] not in self.__all_classes:
+        if all_args and all_args[0] not in name_class:
             print("** class doesn't exist **")
             return
-        class_name = arg_list[0]
-        object_list = []
 
-        for obj in all_objects:
-            if class_name == all_objects[obj].__class__.__name__:
-                object_list.append(str(all_objects[obj]))
-        print(object_list)
+        storage.reload()
+        objs_in_dict = storage.all()
+        objs_list = []
 
-    def do_count(self, args):
-        """Usage: to count <class> or <class>.count()
-        Retrieve number of instances of given class."""
+        # return all objs if class name is not specified.
+        try:
+            class_name = all_args[0]
+        except:
+            for obj in objs_in_dict.values():
+                objs_list.append(obj.__str__())
+        else:
+            # give objs with the specified class name if class name is given
+            for obj in objs_in_dict.values():
+                if class_name == obj.__class__.__name__:
+                    objs_list.append(obj.__str__())
 
-        arg_list = args.split()
-        count = 0
-        for obj in storage.all().values():
-            if arg_list[0] == obj.__class__.__name__:
-                count += 1
-        print(count)
+        print(objs_list)
+
+    def complete_all(self, text, line, begidx, endidx):
+        return complete_class_arg(text, line, begidx, endidx)
 
     def do_update(self, args):
-        """Usage: to update <class> <id> <attribute_name> <attribute_value> or
-       <class>.update(<id>, <attribute_name>, <attribute_value>) or
-       <class>.update(<id>, <dictionary>)
-        Update class instance of given id by adding or updating
-       given attribute key/value pair or dictionary."""
+        """Updates an instance based on the class name and id
+        update: update <class_name> <instance id> <attribute name>
+        "<attribute value>"
+        """
 
-        arg_list = args.split()
-        all_objects = storage.all()
+        all_args = parse_args(args)
 
-        if len(arg_list) == 0:
+        if not all_args:
             print("** class name missing **")
-            return False
-        class_name = arg_list[0]
-
-        if class_name not in self.__all_classes:
+            return
+        elif all_args[0] not in name_class:
             print("** class doesn't exist **")
-            return False
-
-        if len(arg_list) == 1:
+            return
+        elif len(all_args) < 2:
             print("** instance id missing **")
-            return False
+            return
 
-        instance_id = arg_list[1]
-        object_key = "{}.{}".format(class_name, instance_id)
+        class_name = all_args[0]
+        inst_id = all_args[1]
 
-        if object_key not in all_objects:
-            print("** no instance found **")
-            return False
+        obj_key = f'{class_name}.{inst_id}'
 
-        if len(arg_list) == 2:
+        storage.reload()
+        objs_in_dict = storage.all()
+
+        try:
+            obj = objs_in_dict[obj_key]
+        except:
+            print('** no instance found **')
+            return
+
+        try:
+            attr_name = all_args[2]
+        except:
             print("** attribute name missing **")
-            return False
-        attribute_name = arg_list[2]
+            return
 
-        if len(arg_list) == 3:
+        try:
+            attr_value = all_args[3]
+            obj_attr = obj.__dict__[attr_name]
+        except KeyError:  # if attr_name(key) not in obj, add it to the object
+            obj.__dict__.update({attr_name: attr_value})
+            storage.save()
+            return
+        except:
             print("** value missing **")
-            return False
-        attribute_value = arg_list[3]
-
-        if attribute_value.isdigit():
-            if isinstance(attribute_value, float):
-                attribute_value = float(attribute_value)
-            elif isinstance(attribute_value, int):
-                attribute_value = int(attribute_value)
-
-        # update BaseModel 00c0c670-e5f3-4603-9aa1-3caca5ee0e75
-        # email "aibnb@mail.com"
-
-        obj = all_objects[object_key]
-        # check if the attribute exist already
-        if attribute_name in obj.to_dict():
-            attribute_original_type = type(obj[attribute_name])
-            attribute_value = attribute_original_type(attribute_value)
-
-            if attribute_original_type in {str, int, float}:
-                attribute_value = attribute_original_type(attribute_value)
-                obj[attribute_name] = attribute_value
-        # if it doesn’t exist we add it
+            return
         else:
-            obj.__dict__.update({attribute_name: attribute_value})
+            obj.__dict__[attr_name] = attr_value
+            storage.save()
 
-        storage.save()
+    def complete_update(self, text, line, begidx, endidx):
+        return complete_class_arg(text, line, begidx, endidx)
 
 
 if __name__ == "__main__":
-    """
-    Repeatedly issue a prompt, accept input, parse an initial prefix
-    off the received input, and dispatch to action methods, passing them
-    the remainder of the line as argument.
-    (see: https://github.com/python/cpython/blob/3.8/Lib/cmd.py#L98)
-    """
     HBNBCommand().cmdloop()
