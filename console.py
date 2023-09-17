@@ -1,243 +1,130 @@
 #!/usr/bin/python3
-"""AirBnB Console Application"""
+"""
+This module defines the console for the AirBnB clone project
+"""
 
 import cmd
-import sys
-import json
-from models.engine import name_class
-from models import storage
-from models import City
-from models import Place
-from models import Review
-from models import State
-from models import Amenity
-from models import BaseModel
-from models import User
-
-
-def parse_args(args):
-    if args:
-        all_args = args.split(' ')
-        return all_args
-    return
-
-
-def complete_class_arg(text, line, begidx, endidx):
-    if not text:
-        completions = name_class[:]
-    else:
-        completions = [
-            class_name
-            for class_name in name_class
-            if class_name.startswith(text)]
-    return completions
+import models
+import shlex
 
 
 class HBNBCommand(cmd.Cmd):
-    """AirBnB Console APP Subclass
+    """
+    This class defines the console for the AirBnB clone project
     """
     prompt = '(hbnb) '
 
     def do_quit(self, arg):
-        """Exit CLI when `quit` is entered"""
+        """
+        Quit command to exit the program
+        """
         return True
 
     def do_EOF(self, arg):
-        """Execute nothing for an EOF input"""
+        """
+        EOF command to exit the program
+        """
         return True
 
     def emptyline(self):
-        """Execute nothing for an empty line command"""
+        """
+        Empty line
+        """
         pass
 
-    def do_create(self, args):
-        """Creates a new instance of BaseModel
-        create: create <class_name> (ex: create BaseModel)
+    def do_create(self, arg):
         """
-
-        all_args = parse_args(args)
-
-        if not all_args:
-            print("** class name missing **")
-            return
-        elif all_args[0] not in name_class:
-            print("** class doesn't exist **")
-            return
-
-        class_name = all_args[0]
-
-        # create new BaseModel instance
-        new_instance = eval(class_name)()
-
-        # save to file.json
-        storage.new(new_instance)
-        storage.save()
-
-        # print id
-        print(new_instance.id)
-
-    def complete_create(self, text, line, begidx, endidx):
-        return complete_class_arg(text, line, begidx, endidx)
-
-    def do_show(self, args):
-        """Prints the string representation of an instance based\
-                on the class name and id
-        show: show <class_name> <instance id>
+        Creates a new instance of BaseModel,
+        saves it (to the JSON file) and prints the id
         """
-
-        all_args = parse_args(args)
-
-        if not all_args:
+        if not arg:
             print("** class name missing **")
-            return
-        elif all_args[0] not in name_class:
+        elif arg not in models.classes:
             print("** class doesn't exist **")
-            return
-        elif len(all_args) < 2:
-            print("** instance id missing **")
-            return
-
-        class_name = all_args[0]
-        inst_id = all_args[1]
-
-        # print string rep of an instance base on class name and id
-        obj_key = f'{class_name}.{inst_id}'
-
-        storage.reload()
-        objs_in_dict = storage.all()
-
-        try:
-            obj = objs_in_dict[obj_key]
-        except:
-            print('** no instance found **')
         else:
-            print(obj)
+            new_instance = models.classes[arg]()
+            new_instance.save()
+            print(new_instance.id)
 
-    def complete_show(self, text, line, begidx, endidx):
-        return complete_class_arg(text, line, begidx, endidx)
-
-    def do_destroy(self, args):
-        """Deletes an instance based on the class name and id
-        destroy: destroy <class_name> <instance id>
+    def do_show(self, arg):
         """
-
-        all_args = parse_args(args)
-
-        if not all_args:
+        Prints the string representation of an instance
+        based on the class name and id
+        """
+        args = shlex.split(arg)
+        if not arg:
             print("** class name missing **")
-            return
-        elif all_args[0] not in name_class:
+        elif args[0] not in models.classes:
             print("** class doesn't exist **")
-            return
-        elif len(all_args) < 2:
+        elif len(args) < 2:
             print("** instance id missing **")
-            return
-
-        class_name = all_args[0]
-        inst_id = all_args[1]
-
-        obj_key = f'{class_name}.{inst_id}'
-
-        storage.reload()
-        objs_in_dict = storage.all()
-
-        try:
-            del objs_in_dict[obj_key]
-        except:
-            print('** no instance found **')
         else:
-            storage.save()
+            key = args[0] + "." + args[1]
+            if key not in models.storage.all():
+                print("** no instance found **")
+            else:
+                print(models.storage.all()[key])
 
-    def complete_destroy(self, text, line, begidx, endidx):
-        return complete_class_arg(text, line, begidx, endidx)
-
-    def do_all(self, args):
-        """Prints all string representation of all instances
-        all: all [<class_name>]
+    def do_destroy(self, arg):
         """
-
-        all_args = parse_args(args)
-
-        if all_args and all_args[0] not in name_class:
-            print("** class doesn't exist **")
-            return
-
-        storage.reload()
-        objs_in_dict = storage.all()
-        objs_list = []
-
-        # return all objs if class name is not specified.
-        try:
-            class_name = all_args[0]
-        except:
-            for obj in objs_in_dict.values():
-                objs_list.append(obj.__str__())
-        else:
-            # give objs with the specified class name if class name is given
-            for obj in objs_in_dict.values():
-                if class_name == obj.__class__.__name__:
-                    objs_list.append(obj.__str__())
-
-        print(objs_list)
-
-    def complete_all(self, text, line, begidx, endidx):
-        return complete_class_arg(text, line, begidx, endidx)
-
-    def do_update(self, args):
-        """Updates an instance based on the class name and id
-        update: update <class_name> <instance id> <attribute name>
-        "<attribute value>"
+        Deletes an instance based on the class name and id
         """
-
-        all_args = parse_args(args)
-
-        if not all_args:
+        args = shlex.split(arg)
+        if not arg:
             print("** class name missing **")
-            return
-        elif all_args[0] not in name_class:
+        elif args[0] not in models.classes:
             print("** class doesn't exist **")
-            return
-        elif len(all_args) < 2:
+        elif len(args) < 2:
             print("** instance id missing **")
-            return
+        else:
+            key = args[0] + "." + args[1]
+            if key not in models.storage.all():
+                print("** no instance found **")
+            else:
+                del models.storage.all()[key]
+                models.storage.save()
 
-        class_name = all_args[0]
-        inst_id = all_args[1]
+    def do_all(self, arg):
+        """
+        Prints all string representation of all instances
+        based or not on the class name
+        """
+        args = shlex.split(arg)
+        if not arg:
+            print([str(value) for value in models.storage.all().values()])
+        elif args[0] not in models.classes:
+            print("** class doesn't exist **")
+        else:
+            print([str(value) for key, value in models.storage.all().items()
+                   if key.split('.')[0] == args[0]])
 
-        obj_key = f'{class_name}.{inst_id}'
-
-        storage.reload()
-        objs_in_dict = storage.all()
-
-        try:
-            obj = objs_in_dict[obj_key]
-        except:
-            print('** no instance found **')
-            return
-
-        try:
-            attr_name = all_args[2]
-        except:
+    def do_update(self, arg):
+        """
+        Updates an instance based on the class name and id
+        by adding or updating attribute
+        """
+        args = shlex.split(arg)
+        if not arg:
+            print("** class name missing **")
+        elif args[0] not in models.classes:
+            print("** class doesn't exist **")
+        elif len(args) < 2:
+            print("** instance id missing **")
+        elif len(args) < 3:
             print("** attribute name missing **")
-            return
-
-        try:
-            attr_value = all_args[3]
-            obj_attr = obj.__dict__[attr_name]
-        except KeyError:  # if attr_name(key) not in obj, add it to the object
-            obj.__dict__.update({attr_name: attr_value})
-            storage.save()
-            return
-        except:
+        elif len(args) < 4:
             print("** value missing **")
-            return
         else:
-            obj.__dict__[attr_name] = attr_value
-            storage.save()
+            key = args[0] + "." + args[1]
+            if key not in models.storage.all():
+                print("** no instance found **")
+            else:
+                setattr(models.storage.all()[key], args[2], args[3])
+                models.storage.save()
 
-    def complete_update(self, text, line, begidx, endidx):
-        return complete_class_arg(text, line, begidx, endidx)
 
-
-if __name__ == "__main__":
+if __name__ == '__main__':
+    """
+    Main function
+    """
     HBNBCommand().cmdloop()

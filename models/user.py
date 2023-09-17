@@ -1,6 +1,5 @@
-#!/usr/bin/python3
-"""
-Module documentation
+
+dule documentation
 """
 
 from models.base_model import BaseModel
